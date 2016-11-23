@@ -134,6 +134,38 @@ class Bias(Constant):
     pass
 
 
+class MahalanobisExp(Kern):
+    def __init__(self, input_dim, variance=1.0, active_dims=None):
+        Kern.__init__(self, input_dim, active_dims)
+        self.scoped_keys.extend(['square_dist'])
+        self.variance = Param(variance, transforms.positive)
+        tri_num = input_dim*(input_dim+1)/2
+        #self.d_param = np.zeros(tri_num).reshape((tri_num, 1))
+        self.d_param = np.zeros(tri_num).reshape((1, tri_num))
+        self.d_param[np.cumsum(np.arange(1, input_dim+1))-1] = 1
+        self.d_param = Param(self.d_param, transforms.LowerTriangular(1))
+    def K(self, X, X2=None):
+        X, X2 = self._slice(X, X2)
+        if X2 is None:
+            X2 = X
+        return self.variance * tf.exp(-self.square_dist(X, X2) / 2)
+    def square_dist(self, X, X2):
+        n = tf.shape(X)[0]
+        m = tf.shape(X2)[0]
+        X = tf.expand_dims(X, 1)
+        X2 = tf.expand_dims(X2, 0)
+        X = tf.tile(X, [1, m, 1])
+        X2 = tf.tile(X2, [n, 1, 1])
+        sub = X - X2
+        s = tf.matrix_triangular_solve(tf.tile(tf.expand_dims(tf.expand_dims(self.d_param, 0), 0), [n, m, 1, 1]), tf.expand_dims(sub, -1))
+        st = tf.expand_dims(tf.squeeze(s, [3]), -2)
+        ret = tf.batch_matmul(st, s)
+        ret = tf.squeeze(ret, [2, 3])
+        return ret
+    def Kdiag(self, X):
+        return tf.diag(self.K(X, X))
+
+ 
 class Stationary(Kern):
     """
     Base class for kernels that are stationary, that is, they only depend on
