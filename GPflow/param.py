@@ -949,9 +949,15 @@ class ParamList(Parameterized):
         item._parent = self
         self.sorted_params.append(item)
 
+    def __len__(self):
+        return len(self._list)
+
     def __setitem__(self, key, value):
         """
         It's not possible to assign to things in the list, but it is possible
         to set their values by assignment.
         """
         self.sorted_params[key]._array[...] = value
+
+    def __len__(self):
+        return len(self.sorted_params)
